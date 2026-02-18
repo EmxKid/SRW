@@ -29,10 +29,12 @@ int main() {
         auto stats = sim.getStats();
         std::cout << "  Загрузка узла: " << std::fixed << std::setprecision(4) 
                   << stats.getNodeUtilization(NUM_USERS) << "\n";
-        std::cout << "  Среднее время активности: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgActiveTime() << " сек\n";
-        std::cout << "  Среднее время простоя: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgPassiveTime() << " сек\n\n";
+                auto pk = stats.getProbabilityDistribution();
+        std::cout << "  Распределение P(k): ";
+        for (size_t i = 0; i < std::min(pk.size(), (size_t)5); ++i) {
+            std::cout << "[" << i << ":" << std::fixed << std::setprecision(3) << pk[i] << "] ";
+        }
+        std::cout << "\n\n";
     }
     
     // Вариант B: нормальное распределение для активной фазы
@@ -47,10 +49,12 @@ int main() {
         auto stats = sim.getStats();
         std::cout << "  Загрузка узла: " << std::fixed << std::setprecision(4) 
                   << stats.getNodeUtilization(NUM_USERS) << "\n";
-        std::cout << "  Среднее время активности: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgActiveTime() << " сек\n";
-        std::cout << "  Среднее время простоя: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgPassiveTime() << " сек\n\n";
+        auto pk = stats.getProbabilityDistribution();
+        std::cout << "  Распределение P(k): ";
+        for (size_t i = 0; i < std::min(pk.size(), (size_t)5); ++i) {
+            std::cout << "[" << i << ":" << std::fixed << std::setprecision(3) << pk[i] << "] ";
+        }
+        std::cout << "\n\n";
     }
     
     // Вариант C: гамма-распределение для активной фазы
@@ -65,11 +69,12 @@ int main() {
         auto stats = sim.getStats();
         std::cout << "  Загрузка узла: " << std::fixed << std::setprecision(4) 
                   << stats.getNodeUtilization(NUM_USERS) << "\n";
-        std::cout << "  Среднее время активности: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgActiveTime() << " сек\n";
-        std::cout << "  Среднее время простоя: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgPassiveTime() << " сек\n\n";
-    }
+                auto pk = stats.getProbabilityDistribution();
+        std::cout << "  Распределение P(k): ";
+        for (size_t i = 0; i < std::min(pk.size(), (size_t)5); ++i) {
+            std::cout << "[" << i << ":" << std::fixed << std::setprecision(3) << pk[i] << "] ";
+        }
+        std::cout << "\n\n";
     
     // Вариант D: логнормальное распределение для активной фазы
     std::cout << "Вариант D: Логнормальное для активной фазы, экспоненциальное для пассивной\n";
@@ -83,10 +88,12 @@ int main() {
         auto stats = sim.getStats();
         std::cout << "  Загрузка узла: " << std::fixed << std::setprecision(4) 
                   << stats.getNodeUtilization(NUM_USERS) << "\n";
-        std::cout << "  Среднее время активности: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgActiveTime() << " сек\n";
-        std::cout << "  Среднее время простоя: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgPassiveTime() << " сек\n\n";
+        auto pk = stats.getProbabilityDistribution();
+        std::cout << "  Распределение P(k): ";
+        for (size_t i = 0; i < std::min(pk.size(), (size_t)5); ++i) {
+            std::cout << "[" << i << ":" << std::fixed << std::setprecision(3) << pk[i] << "] ";
+        }
+        std::cout << "\n\n";
     }
     
     // Вариант E: детерминированное распределение для пассивной фазы
@@ -101,17 +108,13 @@ int main() {
         auto stats = sim.getStats();
         std::cout << "  Загрузка узла: " << std::fixed << std::setprecision(4) 
                   << stats.getNodeUtilization(NUM_USERS) << "\n";
-        std::cout << "  Среднее время активности: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgActiveTime() << " сек\n";
-        std::cout << "  Среднее время простоя: " << std::fixed << std::setprecision(3) 
-                  << stats.getAvgPassiveTime() << " сек\n\n";
+        auto pk = stats.getProbabilityDistribution();
+        std::cout << "  Распределение P(k): ";
+        for (size_t i = 0; i < std::min(pk.size(), (size_t)5); ++i) {
+            std::cout << "[" << i << ":" << std::fixed << std::setprecision(3) << pk[i] << "] ";
+        }
+        std::cout << "\n\n";
     }
-    
-    std::cout << "=== Выводы ===\n";
-    std::cout << "Сравнивая разные распределения, мы видим влияние формы распределения\n";
-    std::cout << "на характеристики системы, даже при одинаковых средних значениях.\n";
-    std::cout << "Это демонстрирует важность учета не только средних значений, но и\n";
-    std::cout << "вариации и формы распределений в реальных системах.\n";
     
     return 0;
 }

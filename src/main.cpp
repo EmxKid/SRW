@@ -18,7 +18,7 @@ int main() {
     // Вариант А: экспоненциальные времена (классическая СМО)
     //   - Активная фаза: среднее время = 2.0 сек (интенсивность μ = 0.5)
     //   - Пассивная фаза: среднее время = 3.0 сек (интенсивность λ = 1/3)
-    auto activeDist = DistributionFactory::exponential(0.5);   // μ = 0.5 → E[T] = 2.0
+    // auto activeDist = DistributionFactory::exponential(0.5);   // μ = 0.5 → E[T] = 2.0
     auto passiveDist = DistributionFactory::exponential(1.0/3.0); // λ = 1/3 → E[T] = 3.0
     
     // Вариант Б: более реалистичные распределения (раскомментировать для теста)
@@ -26,7 +26,7 @@ int main() {
     // auto passiveDist = DistributionFactory::hyperexponential(0.7, 0.2, 2.0); // смесь лёгких/тяжёлых пауз
     
     // Вариант В: неэкспоненциальные распределения для моделирования объема работы
-    // auto activeDist = DistributionFactory::normal(2.0, 0.5);     // Нормальное: среднее 2.0, stddev 0.5
+    auto activeDist = DistributionFactory::normal(2.0, 0.5);     // Нормальное: среднее 2.0, stddev 0.5
     // auto activeDist = DistributionFactory::gamma(2.0, 1.0);      // Гамма: shape=2, scale=1 → E[T]=2.0
     // auto activeDist = DistributionFactory::lognormal(0.6, 0.4);  // Логнормальное: μ=0.6, σ=0.4 → E[T]≈2.0
     // auto passiveDist = DistributionFactory::deterministic(3.0);  // Детерминированное: всегда 3.0 сек
