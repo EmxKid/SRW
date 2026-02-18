@@ -14,11 +14,3 @@ add_executable(simulator_example
     src/Distribution.cpp
     src/RandomGenerator.cpp
 )
-
-add_executable(comparison_example
-    src/comparison_main.cpp
-    src/Simulator.cpp
-    src/EventQueue.cpp
-    src/Distribution.cpp
-    src/RandomGenerator.cpp
-)
