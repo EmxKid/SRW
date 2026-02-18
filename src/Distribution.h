@@ -32,6 +32,15 @@ public:
     // Детерминированное (фиксированное время)
     static std::unique_ptr<Distribution> deterministic(double value);
     
+    // Нормальное распределение (с возможностью усечения)
+    static std::unique_ptr<Distribution> normal(double mean, double stddev);
+    
+    // Гамма-распределение
+    static std::unique_ptr<Distribution> gamma(double shape, double scale);
+    
+    // Логнормальное распределение
+    static std::unique_ptr<Distribution> lognormal(double mu, double sigma);
+    
 };
 
 #endif // DISTRIBUTION_H

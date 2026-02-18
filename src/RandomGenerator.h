@@ -30,6 +30,9 @@ public:
     std::string getState() const;
     void setState(const std::string& state);
 
+    // Публичный доступ к генератору для новых распределений
+    std::mt19937& generator() { return gen_; }
+
 private:
     RandomGenerator(); // приватный конструктор
     std::mt19937 gen_;
@@ -43,6 +46,21 @@ inline double randUniform(double a = 0.0, double b = 1.0) {
 
 inline double randExponential(double rate) {
     return RandomGenerator::instance().exponential(rate);
+}
+
+inline double randNormal(double mean, double stddev) {
+    std::normal_distribution<double> dist(mean, stddev);
+    return dist(RandomGenerator::instance().generator());
+}
+
+inline double randGamma(double shape, double scale) {
+    std::gamma_distribution<double> dist(shape, scale);
+    return dist(RandomGenerator::instance().generator());
+}
+
+inline double randLognormal(double mu, double sigma) {
+    std::lognormal_distribution<double> dist(mu, sigma);
+    return dist(RandomGenerator::instance().generator());
 }
 
 #endif // RANDOM_GENERATOR_H
