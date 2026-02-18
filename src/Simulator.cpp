@@ -8,11 +8,13 @@ Simulator::Simulator(
     int maxUsers,
     std::unique_ptr<Distribution> activeDist,
     std::unique_ptr<Distribution> passiveDist,
-    std::unique_ptr<Distribution> resourceDist
+    std::unique_ptr<Distribution> resourceDist,
+    double maxCapacity
 ) : maxUsers_(maxUsers),
     activeTimeDist_(std::move(activeDist)),
     passiveTimeDist_(std::move(passiveDist)),
     resourceRequirementDist_(std::move(resourceDist)),
+    maxResourceCapacity_(maxCapacity),
     userStates_(maxUsers_, false),      // все начинают в пассивной фазе
     lastEventTime_(maxUsers_, 0.0),     // время последнего события = 0 для всех
     resourceRequirements_(maxUsers_),
@@ -36,10 +38,12 @@ void Simulator::initialize() {
     // Все пользователи начинают в пассивной фазе
     for (int userId = 0; userId < maxUsers_; ++userId) {
         double nextActivation = currentTime_ + passiveTimeDist_->sample();
+        double adjustedNextActivation = nextActivation * calculateDegradationFactor();
         eventQueue_.push(Event{
-            nextActivation,
+            adjustedNextActivation,
             EventType::ACTIVATION,
             userId,
+            resourceRequirements_[userId],
             [this, userId]() { handleActivation(userId); }
         });
         lastEventTime_[userId] = currentTime_;
@@ -56,6 +60,7 @@ void Simulator::scheduleMonitoring(double nextTime) {
         nextTime,
         EventType::MONITORING,
         -1,  // системное событие
+        0.0, // мониторинг не потребляет ресурсы
         [this, nextTime]() {
             handleMonitoring();
             scheduleMonitoring(nextTime + 1.0);
@@ -82,20 +87,50 @@ void Simulator::updateStatistics(int userId, double currentTime) {
     lastEventTime_[userId] = currentTime;
 }
 
+double Simulator::calculateDegradationFactor() const {
+    // Вычисляем текущий уровень нагрузки на систему
+    double currentLoad = currentResourceConsumption_ / maxResourceCapacity_;
+    
+    // Ограничиваем уровень нагрузки от 0 до 1
+    currentLoad = std::min(1.0, std::max(0.0, currentLoad));
+    
+    // Простая модель деградации: при 100% загрузке время увеличивается в 2 раза
+    // f = 1 + load (при load=1 -> f=2, при load=0 -> f=1)
+    return 1.0 + currentLoad;
+}
+
+double Simulator::adjustTimeForDegradation(double originalTime, double resourceConsumption) const {
+    double deltaTime = originalTime - currentTime_;
+    if (deltaTime <= 0.0) return originalTime;
+    
+    // Вычисляем средний уровень деградации за этот интервал
+    double averageCurrentResource = currentResourceConsumption_ + resourceConsumption / 2.0;
+    double averageLoad = averageCurrentResource / maxResourceCapacity_;
+    averageLoad = std::min(1.0, std::max(0.0, averageLoad));
+    double degradationFactor = 1.0 + averageLoad;
+    
+    // Применяем деградацию к времени
+    double adjustedDeltaTime = deltaTime * degradationFactor;
+    return currentTime_ + adjustedDeltaTime;
+}
+
 void Simulator::handleActivation(int userId) {
     // 1. Обновляем статистику за предыдущий интервал (пассивная фаза)
     updateGlobalStatistics(currentTime_);
     updateStatistics(userId, currentTime_);
     
-    // 2. Меняем состояние на активное
+    // 2. Меняем состояние на активное и обновляем потребление ресурсов
     userStates_[userId] = true;
+    currentResourceConsumption_ += resourceRequirements_[userId];
     
     // 3. Планируем завершение задачи
     double taskDuration = activeTimeDist_->sample();
+    double adjustedTaskDuration = taskDuration * calculateDegradationFactor();
     eventQueue_.push(Event{
-        currentTime_ + taskDuration,
+        currentTime_ + adjustedTaskDuration,
         EventType::DEACTIVATION,
         userId,
+        resourceRequirements_[userId],
         [this, userId]() { handleDeactivation(userId); }
     });
     
@@ -109,18 +144,21 @@ void Simulator::handleDeactivation(int userId) {
     // 1. Обновляем статистику за предыдущий интервал (активная фаза)
     updateStatistics(userId, currentTime_);
     
-    // 2. Меняем состояние на пассивное
+    // 2. Меняем состояние на пассивное и обновляем потребление ресурсов
     userStates_[userId] = false;
+    currentResourceConsumption_ -= resourceRequirements_[userId];
     
     // 3. Увеличиваем счётчик задач
     stats_.taskCount[userId]++;
     
     // 4. Планируем следующее пробуждение
     double nextPassive = passiveTimeDist_->sample();
+    double adjustedNextPassive = nextPassive * calculateDegradationFactor();
     eventQueue_.push(Event{
-        currentTime_ + nextPassive,
+        currentTime_ + adjustedNextPassive,
         EventType::ACTIVATION,
         userId,
+        resourceRequirements_[userId],
         [this, userId]() { handleActivation(userId); }
     });
 }
