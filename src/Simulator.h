@@ -169,10 +169,20 @@ private:
     std::vector<double> lastEventTime_; // время последнего события для каждого пользователя
     std::vector<double> resourceRequirements_; // требуемый ресурс для каждого пользователя
     
+    // Состояние ресурсов системы
+    double currentResourceConsumption_ = 0.0; // текущее суммарное потребление ресурсов
+    double maxResourceCapacity_ = 100.0;      // максимальная емкость ресурса системы (можно настроить)
+    
     SimulationStats stats_;
     
     // Инкрементальное обновление статистики ПЕРЕД изменением состояния
     void updateStatistics(int userId, double currentTime);
+    
+    // Вычисление коэффициента деградации системы
+    double calculateDegradationFactor() const;
+    
+    // Корректировка времени события с учетом деградации
+    double adjustTimeForDegradation(double originalTime, double resourceConsumption) const;
     
     // Обработчики событий
     void handleActivation(int userId);
@@ -187,7 +197,8 @@ public:
         int maxUsers,
         std::unique_ptr<Distribution> activeDist,
         std::unique_ptr<Distribution> passiveDist,
-        std::unique_ptr<Distribution> resourceDist
+        std::unique_ptr<Distribution> resourceDist,
+        double maxCapacity = 100.0
     );
     
     // Инициализация: все пользователи начинают в пассивной фазе
