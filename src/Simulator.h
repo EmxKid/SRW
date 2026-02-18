@@ -26,12 +26,19 @@ struct SimulationStats {
 
     std::vector<double> timeInState;  // timeInState[k] = время с ровно k активными
 
+    // Новые поля для учета ресурсов
+    double totalResourceConsumption = 0.0;  // Интеграл от суммарного ресурсопотребления
+    std::vector<double> resourceRequirements;  // Требуемый ресурс для каждого пользователя
+    std::vector<double> timeByTotalResource;  // timeByTotalResource[r] = время с суммарным ресурсопотреблением ~r
+
     // Конструктор с инициализацией векторов
-    explicit SimulationStats(int numUsers)
+    explicit SimulationStats(int numUsers, const std::vector<double>& resourceReqs)
         : totalActiveTime(numUsers, 0.0),
           totalPassiveTime(numUsers, 0.0),
           taskCount(numUsers, 0),
-          timeInState(numUsers + 1, 0.0) {} 
+          timeInState(numUsers + 1, 0.0),
+          resourceRequirements(resourceReqs),
+          timeByTotalResource(numUsers * 10 + 1, 0.0) {}  // Предполагаем, что максимальный суммарный ресурс ~numUsers*avg_resource
 
     std::vector<double> getProbabilityDistribution() const {
         std::vector<double> pk(timeInState.size(), 0.0);
@@ -43,10 +50,27 @@ struct SimulationStats {
         return pk;
     }
 
+    // Новая функция для получения распределения по суммарному ресурсопотреблению
+    std::vector<double> getResourceDistribution() const {
+        std::vector<double> pr(timeByTotalResource.size(), 0.0);
+        if (totalSimulationTime <= 0.0) return pr;
+        
+        for (size_t r = 0; r < timeByTotalResource.size(); ++r) {
+            pr[r] = timeByTotalResource[r] / totalSimulationTime;
+        }
+        return pr;
+    }
+
     // Расчётные метрики
     double getNodeUtilization(int totalUsers) const {
         return totalSimulationTime > 0 
             ? nodeBusyTime / (totalSimulationTime * totalUsers) 
+            : 0.0;
+    }
+
+    double getAvgResourceUtilization() const {
+        return totalSimulationTime > 0 
+            ? totalResourceConsumption / totalSimulationTime 
             : 0.0;
     }
 
@@ -70,8 +94,10 @@ struct SimulationStats {
 
     void printSummary(int totalUsers) const {
         double utilization = getNodeUtilization(totalUsers);
+        double avgResourceUtil = getAvgResourceUtilization();
 
         auto pk = getProbabilityDistribution();
+        auto pr = getResourceDistribution();
         
         std::cout << "\n=== Результаты симуляции ===\n";
         std::cout << "Время симуляции:        " << std::fixed << std::setprecision(2) 
@@ -79,6 +105,8 @@ struct SimulationStats {
         std::cout << "Число пользователей:    " << totalUsers << "\n";
         std::cout << "Загрузка узла (ρ):      " << std::fixed << std::setprecision(4) 
                   << utilization << " (" << utilization * 100 << "%)\n";
+        std::cout << "Средняя загрузка ресурса: " << std::fixed << std::setprecision(4) 
+                  << avgResourceUtil << "\n";
         std::cout << "Максимум активных:      " << maxConcurrentUsers << " / " << totalUsers << "\n";
         std::cout << "Среднее время активности: " << std::fixed << std::setprecision(3) 
                   << getAvgActiveTime() << " сек\n";
@@ -93,11 +121,29 @@ struct SimulationStats {
         std::cout << " k |   P(k)   | Гистограмма\n";
         std::cout << "---|----------|------------\n";
         for (size_t k = 0; k < pk.size(); ++k) {
-            std::cout << std::setw(2) << k << " | " 
-                        << std::fixed << std::setprecision(4) << pk[k] << " | ";
-            int bars = static_cast<int>(pk[k] * 50);
-            for (int i = 0; i < bars; ++i) std::cout << "█";
-            std::cout << "\n";
+            if (pk[k] > 0.0001) {  // Печатаем только значимые значения
+                std::cout << std::setw(2) << k << " | " 
+                            << std::fixed << std::setprecision(4) << pk[k] << " | ";
+                int bars = static_cast<int>(pk[k] * 50);
+                for (int i = 0; i < bars; ++i) std::cout << "█";
+                std::cout << "\n";
+            }
+        }
+        std::cout << "============================\n";
+
+        std::cout << "\nРаспределение суммарного ресурсопотребления P(R):\n";
+        std::cout << " R |  P(R)   | Гистограмма\n";
+        std::cout << "---|---------|------------\n";
+        int printed = 0;
+        for (size_t r = 0; r < pr.size() && printed < 20; ++r) {  // Ограничиваем вывод
+            if (pr[r] > 0.0001) {  // Печатаем только значимые значения
+                std::cout << std::setw(2) << r << " | " 
+                            << std::fixed << std::setprecision(4) << pr[r] << " | ";
+                int bars = static_cast<int>(pr[r] * 50);
+                for (int i = 0; i < bars; ++i) std::cout << "█";
+                std::cout << "\n";
+                printed++;
+            }
         }
         std::cout << "============================\n";
     }
@@ -115,9 +161,13 @@ private:
     std::unique_ptr<Distribution> activeTimeDist_;   // время работы (активная фаза)
     std::unique_ptr<Distribution> passiveTimeDist_;  // время простоя (пассивная фаза)
     
+    // Новое: распределение для требования ресурса
+    std::unique_ptr<Distribution> resourceRequirementDist_;
+    
     // Состояние пользователей
     std::vector<bool> userStates_;      // true = активен, false = пассивен
     std::vector<double> lastEventTime_; // время последнего события для каждого пользователя
+    std::vector<double> resourceRequirements_; // требуемый ресурс для каждого пользователя
     
     SimulationStats stats_;
     
@@ -136,7 +186,8 @@ public:
     Simulator(
         int maxUsers,
         std::unique_ptr<Distribution> activeDist,
-        std::unique_ptr<Distribution> passiveDist
+        std::unique_ptr<Distribution> passiveDist,
+        std::unique_ptr<Distribution> resourceDist
     );
     
     // Инициализация: все пользователи начинают в пассивной фазе

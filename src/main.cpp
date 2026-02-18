@@ -47,6 +47,9 @@ int main() {
     std::cout << "Параметры системы: " << NUM_USERS << " пользователей, " 
               << SIM_TIME << " секунд симуляции, сид = 56\n\n";
 
+    // Распределение для требования ресурса (пока фиксированное)
+    auto resourceDist = DistributionFactory::deterministic(1.0);  // Каждый пользователь требует 1.0 единиц ресурса
+    
     // Вариант А: экспоненциальные времена (классическая СМО)
     std::cout << "Вариант А: Оба экспоненциальные (базовый случай)\n";
     std::cout << "  Активная фаза: экспоненциальное (μ=0.5, E[T]=2.0)\n";
@@ -55,7 +58,7 @@ int main() {
         auto activeDist = DistributionFactory::exponential(0.5);
         auto passiveDist = DistributionFactory::exponential(1.0/3.0);
         
-        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist));
+        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist), std::move(resourceDist));
         sim.runUntil(SIM_TIME);
         
         // Полный вывод статистики
@@ -77,7 +80,7 @@ int main() {
         auto activeDist = DistributionFactory::normal(2.0, 0.5);
         auto passiveDist = DistributionFactory::exponential(1.0/3.0);
         
-        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist));
+        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist), std::move(resourceDist));
         sim.runUntil(SIM_TIME);
         
         sim.getStats().printSummary(NUM_USERS);
@@ -94,7 +97,7 @@ int main() {
         auto activeDist = DistributionFactory::gamma(2.0, 1.0);
         auto passiveDist = DistributionFactory::exponential(1.0/3.0);
         
-        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist));
+        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist), std::move(resourceDist));
         sim.runUntil(SIM_TIME);
         
         sim.getStats().printSummary(NUM_USERS);
@@ -111,7 +114,7 @@ int main() {
         auto activeDist = DistributionFactory::lognormal(0.6, 0.4);
         auto passiveDist = DistributionFactory::exponential(1.0/3.0);
         
-        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist));
+        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist), std::move(resourceDist));
         sim.runUntil(SIM_TIME);
         
         sim.getStats().printSummary(NUM_USERS);
@@ -128,7 +131,7 @@ int main() {
         auto activeDist = DistributionFactory::exponential(0.5);
         auto passiveDist = DistributionFactory::deterministic(3.0);
         
-        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist));
+        Simulator sim(NUM_USERS, std::move(activeDist), std::move(passiveDist), std::move(resourceDist));
         sim.runUntil(SIM_TIME);
         
         sim.getStats().printSummary(NUM_USERS);

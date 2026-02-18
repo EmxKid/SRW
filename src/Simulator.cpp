@@ -7,18 +7,29 @@
 Simulator::Simulator(
     int maxUsers,
     std::unique_ptr<Distribution> activeDist,
-    std::unique_ptr<Distribution> passiveDist
+    std::unique_ptr<Distribution> passiveDist,
+    std::unique_ptr<Distribution> resourceDist
 ) : maxUsers_(maxUsers),
     activeTimeDist_(std::move(activeDist)),
     passiveTimeDist_(std::move(passiveDist)),
+    resourceRequirementDist_(std::move(resourceDist)),
     userStates_(maxUsers_, false),      // все начинают в пассивной фазе
     lastEventTime_(maxUsers_, 0.0),     // время последнего события = 0 для всех
-    stats_(maxUsers_)
+    resourceRequirements_(maxUsers_),
+    stats_(maxUsers_, std::vector<double>(maxUsers_, 0.0))  // временный вектор, будет переназначен позже
 {
     if (maxUsers_ <= 0)
         throw std::invalid_argument("Число пользователей должно быть > 0");
-    if (!activeTimeDist_ || !passiveTimeDist_)
+    if (!activeTimeDist_ || !passiveTimeDist_ || !resourceRequirementDist_)
         throw std::invalid_argument("Распределения не должны быть nullptr");
+    
+    // Инициализация требований ресурса для каждого пользователя
+    for (int i = 0; i < maxUsers_; ++i) {
+        resourceRequirements_[i] = resourceRequirementDist_->sample();
+    }
+    
+    // Пересоздаем статистику с правильным вектором требований ресурса
+    stats_ = SimulationStats(maxUsers_, resourceRequirements_);
 }
 
 void Simulator::initialize() {
@@ -150,8 +161,27 @@ void Simulator::updateGlobalStatistics(double currentTime) {
     int activeCount = std::count(userStates_.begin(), userStates_.end(), true);
     double dt = currentTime - lastGlobalEventTime_;
     
+    // Обновляем статистику по числу активных пользователей
     if (activeCount >= 0 && activeCount <= maxUsers_) {
         stats_.timeInState[activeCount] += dt;
+    }
+    
+    // НОВОЕ: Обновляем статистику по суммарному ресурсопотреблению
+    double totalResource = 0.0;
+    for (int i = 0; i < maxUsers_; ++i) {
+        if (userStates_[i]) {  // Если пользователь активен
+            totalResource += resourceRequirements_[i];
+        }
+    }
+    
+    // Интегрируем суммарное ресурсопотребление
+    stats_.totalResourceConsumption += totalResource * dt;
+    
+    // Обновляем время, проведенное с данным уровнем ресурсопотребления
+    // Индексируем по целой части ресурса (можно адаптировать под другую дискретизацию)
+    int resourceIndex = static_cast<int>(totalResource);
+    if (resourceIndex >= 0 && resourceIndex < static_cast<int>(stats_.timeByTotalResource.size())) {
+        stats_.timeByTotalResource[resourceIndex] += dt;
     }
     
     lastGlobalEventTime_ = currentTime;
