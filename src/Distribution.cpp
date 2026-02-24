@@ -107,3 +107,33 @@ public:
 std::unique_ptr<Distribution> DistributionFactory::lognormal(double mu, double sigma) {
     return std::make_unique<LognormalDist>(mu, sigma);
 }
+
+
+// Равномерное распределение на отрезке [min, max]
+class UniformDist : public Distribution {  // ← не забудьте public наследование!
+    double min_, max_;
+public:
+    UniformDist(double min, double max) : min_(min), max_(max) {
+        if (min_ >= max_) throw std::invalid_argument("Uniform: min < max required");
+    }
+    
+    double sample() override { 
+        return randUniform(min_, max_);  // ← убедитесь, что эта функция есть в RandomGenerator
+    }
+    
+    double mean() const override { 
+        return (min_ + max_) / 2.0;  // E[X] = (a+b)/2
+    }
+    
+    std::string name() const override { 
+        return "U(min=" + std::to_string(min_) + ",max=" + std::to_string(max_) + ")"; 
+    }
+    
+    std::unique_ptr<Distribution> clone() const override {
+        return std::make_unique<UniformDist>(min_, max_);
+    }
+};
+
+std::unique_ptr<Distribution> DistributionFactory::uniform(double min, double max) {
+    return std::make_unique<UniformDist>(min, max);
+}

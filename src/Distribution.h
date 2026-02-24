@@ -40,6 +40,9 @@ public:
     
     // Логнормальное распределение
     static std::unique_ptr<Distribution> lognormal(double mu, double sigma);
+
+    // Равномерное распределение
+    static std::unique_ptr<Distribution> uniform(double min, double max);
     
 };
 
