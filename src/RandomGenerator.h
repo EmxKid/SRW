@@ -35,8 +35,8 @@ public:
 
 private:
     RandomGenerator(); // приватный конструктор
-    std::mt19937 gen_;
     unsigned int seed_;  // Явно сохраняем семя
+    std::mt19937 gen_;
 };
 
 // Глобальные удобные псевдонимы

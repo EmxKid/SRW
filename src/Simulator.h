@@ -3,6 +3,8 @@
 
 #include "EventQueue.h"
 #include "Distribution.h"
+#include "ISimulationListener.h"
+
 #include <vector>
 #include <memory>
 #include <algorithm>
@@ -11,39 +13,51 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <map>
+#include <cstdint>
 
 struct SimulationStats {
-    // Для каждого пользователя
-    std::vector<double> totalActiveTime;   // Σ время в активной фазе
-    std::vector<double> totalPassiveTime;  // Σ время в пассивной фазе
-    std::vector<int> taskCount;            // Число завершённых задач
+    std::vector<double> totalActiveTime;
+    std::vector<double> totalPassiveTime;
+    std::vector<int> taskCount;
     
-    // Для узла в целом
-    double nodeBusyTime = 0.0;             // Интеграл от числа активных пользователей по времени
-    int maxConcurrentUsers = 0;            // Пик одновременных активных пользователей
-    int totalEventsProcessed = 0;          // Общее число обработанных событий
-    double totalSimulationTime = 0.0;      // Фактическое время симуляции
+    double nodeBusyTime = 0.0;
+    int maxConcurrentUsers = 0;
+    int totalEventsProcessed = 0;
+    double totalSimulationTime = 0.0;
 
-    std::vector<double> timeInState;  // timeInState[k] = время с ровно k активными
+    std::vector<double> totalWorkCompleted;
+    double totalWorkProcessed = 0.0;
+    
+    std::map<int, double> completionTimeHistogram;
+    
+    double avgDegradationFactor = 1.0;
+    int degradationSamples = 0;
 
-    // Конструктор с инициализацией векторов
+    std::vector<double> timeInState;
+
     explicit SimulationStats(int numUsers)
         : totalActiveTime(numUsers, 0.0),
           totalPassiveTime(numUsers, 0.0),
           taskCount(numUsers, 0),
+          totalWorkCompleted(numUsers, 0.0),
           timeInState(numUsers + 1, 0.0) {} 
 
     std::vector<double> getProbabilityDistribution() const {
         std::vector<double> pk(timeInState.size(), 0.0);
         if (totalSimulationTime <= 0.0) return pk;
-        
         for (size_t k = 0; k < timeInState.size(); ++k) {
             pk[k] = timeInState[k] / totalSimulationTime;
         }
         return pk;
     }
 
-    // Расчётные метрики
+    void recordDegradation(double factor) {
+        avgDegradationFactor = (avgDegradationFactor * degradationSamples + factor) 
+                              / (degradationSamples + 1);
+        degradationSamples++;
+    }
+
     double getNodeUtilization(int totalUsers) const {
         return totalSimulationTime > 0 
             ? nodeBusyTime / (totalSimulationTime * totalUsers) 
@@ -70,7 +84,6 @@ struct SimulationStats {
 
     void printSummary(int totalUsers) const {
         double utilization = getNodeUtilization(totalUsers);
-
         auto pk = getProbabilityDistribution();
         
         std::cout << "\n=== Результаты симуляции ===\n";
@@ -105,51 +118,57 @@ struct SimulationStats {
 
 class Simulator {
 private:
-    EventQueue eventQueue_;
-    double currentTime_ = 0.0;
-    const int maxUsers_;  // Ограничение числа пользователей (закрытая система)
-    double lastGlobalEventTime_ = 0.0;
+    const int m_users;
+    
+    double m_currentTime = 0.0;
+    double m_statUpdateTime = 0.0;
+    double m_baseServiceRate;
+    double m_currentEffectiveRate;
+    
+    std::unique_ptr<Distribution> m_workloadDist;
+    std::unique_ptr<Distribution> m_passiveTimeDist;
+    std::unique_ptr<Distribution> m_serviceTime;
+    std::function<double(double)> m_degradationFn;
+    
+    std::vector<bool> m_userStates;
+    std::vector<double> m_lastEventTime;
+    std::vector<double> m_Workload;
+    std::vector<double> m_remainingTime;
+    std::vector<uint64_t> m_eventVersion;
+    
+    SimulationStats m_stats;
+    EventQueue m_eventQueue;
+
     void updateGlobalStatistics(double currentTime);
-    
-    // Распределения для фаз
-    std::unique_ptr<Distribution> activeTimeDist_;   // время работы (активная фаза)
-    std::unique_ptr<Distribution> passiveTimeDist_;  // время простоя (пассивная фаза)
-    
-    // Состояние пользователей
-    std::vector<bool> userStates_;      // true = активен, false = пассивен
-    std::vector<double> lastEventTime_; // время последнего события для каждого пользователя
-    
-    SimulationStats stats_;
-    
-    // Инкрементальное обновление статистики ПЕРЕД изменением состояния
     void updateStatistics(int userId, double currentTime);
-    
-    // Обработчики событий
     void handleActivation(int userId);
     void handleDeactivation(int userId);
     void handleMonitoring();
-    
-    // Планирование периодического мониторинга
     void scheduleMonitoring(double nextTime);
 
+    std::vector<ISimulationListener*> m_listeners;
+    void notifyListeners();
+    
+    double getTotalWorkload() const;
+    double computeEffectiveRate(double totalWorkload) const;
+    void rescaleRemainingTimes(double oldRate, double newRate, int excludingUserId = -1);
+    
 public:
     Simulator(
         int maxUsers,
-        std::unique_ptr<Distribution> activeDist,
-        std::unique_ptr<Distribution> passiveDist
+        double baseServiceRate,
+        std::unique_ptr<Distribution> workloadDist,
+        std::unique_ptr<Distribution> passiveTimeDist,
+        std::unique_ptr<Distribution> serviceTimeDist,
+        std::function<double(double)> degradationFn
     );
     
-    // Инициализация: все пользователи начинают в пассивной фазе
     void initialize();
-    
-    // Запуск симуляции до заданного времени
     void runUntil(double endTime);
-    
-    // Текущее время симуляции
-    double currentTime() const { return currentTime_; }
-    
-    // Получение статистики
-    const SimulationStats& getStats() const { return stats_; }
+    double currentTime() const { return m_currentTime; }
+    const SimulationStats& getStats() const { return m_stats; }
+    void attachListener(ISimulationListener* listener);
+    void finalize();
 };
 
-#endif // SIMULATOR_H
+#endif

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <memory>
+#include <iostream>
 
 // Экспоненциальное распределение
 class ExponentialDist : public Distribution {
@@ -12,7 +13,10 @@ public:
     ExponentialDist(double rate) : rate_(rate) {
         if (rate <= 0) throw std::invalid_argument("Rate > 0 required");
     }
-    double sample() override { return randExponential(rate_); }
+    double sample(std::optional<double> rate) override { 
+        double actualRate = rate.value_or(rate_);
+        return randExponential(actualRate); 
+    }
     double mean() const override { return 1.0 / rate_; }
     std::string name() const override { return "Exp(λ=" + std::to_string(rate_) + ")"; }
     std::unique_ptr<Distribution> clone() const override {
@@ -31,7 +35,9 @@ class DeterministicDist : public Distribution {
     double value_;
 public:
     DeterministicDist(double value) : value_(value) {}
-    double sample() override { return value_; }
+    double sample(std::optional<double> rate) override { 
+        return value_; 
+    }
     double mean() const override { return value_; }
     std::string name() const override { return "Det(" + std::to_string(value_) + ")"; }
     std::unique_ptr<Distribution> clone() const override {
@@ -50,7 +56,16 @@ public:
     NormalDist(double mean, double stddev) : mean_(mean), stddev_(stddev) {
         if (stddev <= 0) throw std::invalid_argument("Stddev > 0 required");
     }
-    double sample() override { return randNormal(mean_, stddev_); }
+    double sample(std::optional<double> rate) override { 
+        if (rate.has_value() && rate.value() > 0) {
+            // Масштабируем stddev обратно пропорционально скорости:
+            // чем выше rate, тем "уже" распределение
+            double scaledStddev = stddev_ / rate.value();
+            // mean_ при этом можно оставить как есть или тоже масштабировать
+            return randNormal(mean_, scaledStddev);
+        }
+        return randNormal(mean_, stddev_); 
+    }
     double mean() const override { return mean_; }
     std::string name() const override { 
         return "N(μ=" + std::to_string(mean_) + ",σ²=" + std::to_string(stddev_*stddev_) + ")"; 
@@ -71,7 +86,14 @@ public:
     GammaDist(double shape, double scale) : shape_(shape), scale_(scale) {
         if (shape <= 0 || scale <= 0) throw std::invalid_argument("Shape and scale > 0 required");
     }
-    double sample() override { return randGamma(shape_, scale_); }
+    double sample(std::optional<double> rate) override { 
+        if (rate.has_value()) {
+            // Сохраняем форму (shape), но масштабируем время через scale
+            // Новый scale = 1 / rate, тогда mean = shape * (1/rate)
+            return randGamma(shape_, 1.0 / rate.value());
+        }
+        return randGamma(shape_, scale_); 
+    }
     double mean() const override { return shape_ * scale_; }
     std::string name() const override { 
         return "Γ(shape=" + std::to_string(shape_) + ",scale=" + std::to_string(scale_) + ")"; 
@@ -92,7 +114,14 @@ public:
     LognormalDist(double mu, double sigma) : mu_(mu), sigma_(sigma) {
         if (sigma <= 0) throw std::invalid_argument("Sigma > 0 required");
     }
-    double sample() override { return randLognormal(mu_, sigma_); }
+    double sample(std::optional<double> rate) override { 
+        if (rate.has_value()) {
+            // Фиксируем "форму" (sigma), подбираем mu под нужное среднее
+            double newMu = std::log(1.0 / rate.value()) - 0.5 * sigma_ * sigma_;
+            return randLognormal(newMu, sigma_);
+        }
+        return randLognormal(mu_, sigma_); 
+    }
     double mean() const override { 
         return std::exp(mu_ + 0.5 * sigma_ * sigma_);  // E[X] = exp(μ + σ²/2)
     }
@@ -117,8 +146,8 @@ public:
         if (min_ >= max_) throw std::invalid_argument("Uniform: min < max required");
     }
     
-    double sample() override { 
-        return randUniform(min_, max_);  // ← убедитесь, что эта функция есть в RandomGenerator
+    double sample(std::optional<double> rate) override { 
+        return randUniform(min_, max_); 
     }
     
     double mean() const override { 

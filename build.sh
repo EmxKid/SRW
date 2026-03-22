@@ -14,6 +14,3 @@ cmake .. || { echo "Ошибка CMake!"; exit 1; }
 
 echo "Компиляция проекта..."
 make -j$(nproc) || { echo "Ошибка компиляции!"; exit 1; }
-
-echo "Запуск симулятора..."
-./simulator_example

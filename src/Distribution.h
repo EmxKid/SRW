@@ -5,13 +5,14 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include <optional>
 
 class Distribution {
 public:
     virtual ~Distribution() = default;
     
     // Генерация случайной величины
-    virtual double sample() = 0;
+    virtual double sample(std::optional<double> rate = std::nullopt) = 0;
     
     // Среднее значение (для аналитических расчётов)
     virtual double mean() const = 0;

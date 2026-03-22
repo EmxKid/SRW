@@ -1,42 +1,42 @@
 #include "EventQueue.h"
-#include <iostream>
 #include <stdexcept>
 
-void EventQueue::push(const Event& event) {
-    queue_.push(event);
+void EventQueue::push(double time, EventType type, int userId, uint64_t eventVersion, std::function<void()> handler) {
+    Event event(time, type, userId, nextSequenceId_++, eventVersion, std::move(handler));
+    events_.insert(event);
 }
 
 Event EventQueue::pop() {
     if (empty()) throw std::runtime_error("Pop from empty event queue");
-    Event event = queue_.top();
-    queue_.pop();
+    auto it = events_.begin();
+    Event event = *it;
+    events_.erase(it);
     return event;
 }
 
 const Event& EventQueue::peek() const {
     if (empty()) throw std::runtime_error("Peek from empty event queue");
-    return queue_.top();
+    return *events_.begin();
 }
 
 bool EventQueue::empty() const {
-    return queue_.empty();
+    return events_.empty();
 }
 
 size_t EventQueue::size() const {
-    return queue_.size();
+    return events_.size();
 }
 
 void EventQueue::debugPrint(size_t n) const {
-    auto copy = queue_;
     std::cout << "=== Event Queue (next " << n << ") ===\n";
     size_t i = 0;
-    while (!copy.empty() && i < n) {
-        const auto& e = copy.top();
-        std::cout << "[" << i << "] t=" << e.time 
+    for (const auto& e : events_) {
+        if (i++ >= n) break;
+        std::cout << "[" << i-1 << "] t=" << e.time 
                   << " type=" << static_cast<int>(e.type) 
-                  << " userId=" << e.userId << "\n";
-        copy.pop();
-        ++i;
+                  << " userId=" << e.userId 
+                  << " ver=" << e.eventVersion
+                  << " seq=" << e.sequenceId << "\n";
     }
     std::cout << "===========================\n";
 }
